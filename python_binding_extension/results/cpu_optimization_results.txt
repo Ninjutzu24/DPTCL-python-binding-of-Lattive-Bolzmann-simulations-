@@ -1,0 +1,33 @@
+CPU OPTIMIZATION RESULTS - miniLB
+=================================
+
+Test case:
+  Lattice size: 512 x 512
+  Iterations:   5000
+  Backend:      SYCL / OpenCL CPU
+  Precision:    SINGLE
+
+
+Configuration                 Lattice     itfin     MLUPS        Verdict
+-------------------------------------------------------------------------
+single_baseline               512x512     5000      133.896376   best
+single_ndrange                512x512     5000      120.008696   slower
+single_fast_flags             512x512     5000      112.598768   slower
+single_ofast                  512x512     5000      106.522008   slower
+single_prefetch               512x512     5000      106.454416   slower
+single_outoforder             512x512     5000       93.832304   slower
+
+
+Best CPU configuration:
+  SINGLE precision
+  USM shared memory:     ON
+  Prefetch:              OFF
+  In-order queue:        ON
+  ND-range:              OFF
+
+Conclusion:
+  Several CPU optimization configurations were tested.
+  On this OpenCL CPU backend, the best performance was obtained with the
+  baseline single-precision configuration. ND-range execution, prefetching,
+  out-of-order queue execution, -O3/-march=native and -Ofast/-march=native
+  did not improve performance for this setup.

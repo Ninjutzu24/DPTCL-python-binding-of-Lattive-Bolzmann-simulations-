@@ -15,4 +15,8 @@ fortran/RUN/*.x
 
 
 benchmark/
-.bgk2d_venv/
+.bgk2d_venv/our_builds/
+
+# Local generated/build folders
+our_builds/
+python_binding_extension/dpctl_examples/miniLB_step_pybind11_kernels copy/

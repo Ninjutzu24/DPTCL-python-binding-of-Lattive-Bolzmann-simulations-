@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.18)
-project(minilb_step_pybind11 LANGUAGES CXX)
+project(minilb_dpctl_pybind11 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -15,9 +15,9 @@ execute_process(
 
 message(STATUS "dpctl include dir: ${DPCTL_INCLUDE_DIR}")
 
-pybind11_add_module(_minilb_step _minilb_step.cpp)
+pybind11_add_module(_minilb_dpctl _minilb_dpctl.cpp)
 
-target_include_directories(_minilb_step PRIVATE ${DPCTL_INCLUDE_DIR})
+target_include_directories(_minilb_dpctl PRIVATE ${DPCTL_INCLUDE_DIR})
 
-target_compile_options(_minilb_step PRIVATE -fsycl)
-target_link_options(_minilb_step PRIVATE -fsycl)
+target_compile_options(_minilb_dpctl PRIVATE -fsycl)
+target_link_options(_minilb_dpctl PRIVATE -fsycl)

@@ -1,0 +1,4 @@
+size,original_itfin,v5_steps,original_mlups,v5_mlups,original_over_v5_speedup,v5_percent_of_original,v5_check_ok,v5_loop_executed_in_cpp,v5_memory_allocated_in_python_with_dpctl,v5_kernels_launched_in_cpp_with_pybind11
+256x256,5000,5000,79.739616,22.478079518747567,3.547439003118311,28.18935009512407,True,True,True,True
+512x512,5000,5000,221.920848,25.384617315423423,8.742335771402914,11.438590625529434,True,True,True,True
+1024x1024,5000,5000,204.47552,29.77689158849043,6.866919584011761,14.562570418449324,True,True,True,True

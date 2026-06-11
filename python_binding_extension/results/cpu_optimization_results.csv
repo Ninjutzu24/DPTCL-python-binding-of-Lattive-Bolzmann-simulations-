@@ -1,0 +1,7 @@
+configuration,lattice,itfin,mlups,verdict
+single_baseline,512x512,5000,133.896376,best
+single_ndrange,512x512,5000,120.008696,slower
+single_fast_flags,512x512,5000,112.598768,slower
+single_ofast,512x512,5000,106.522008,slower
+single_prefetch,512x512,5000,106.454416,slower
+single_outoforder,512x512,5000,93.832304,slower

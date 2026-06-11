@@ -20,10 +20,10 @@ storage::storage()
       #else
         #ifdef SYCL_IN_ORDER_QUEUE
       host_q(std::make_shared<sycl::queue>(cpu_selector, sycl::property::queue::in_order{})),
-      dev_q(std::make_shared<sycl::queue>(sycl::gpu_selector{}, sycl::property::queue::in_order{})),
+      dev_q(std::make_shared<sycl::queue>(cpu_selector, sycl::property::queue::in_order{})),
         #else
 host_q(std::make_shared<sycl::queue>(cpu_selector)),
-      dev_q(std::make_shared<sycl::queue>(sycl::gpu_selector{})),
+      dev_q(std::make_shared<sycl::queue>(cpu_selector)),
         #endif
       #endif
       _a01(host_q, dev_q), _a03(host_q, dev_q),
