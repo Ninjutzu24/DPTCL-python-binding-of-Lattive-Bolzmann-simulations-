@@ -1,0 +1,927 @@
+============================================================
+COMENZI RULARE - miniLB V5 FINAL
+============================================================
+
+cd "/mnt/d/Facultate/Anul 2/Sem2_Erasmus/HIGH PERFORMANCE_proiect_V5/miniLB"
+
+
+============================================================
+PARTEA B - ACTIVARE oneAPI PENTRU miniLB 
+============================================================
+
+source /opt/intel/oneapi/setvars.sh
+
+export LD_LIBRARY_PATH=/opt/intel/oneapi/umf/1.0/lib:/opt/intel/oneapi/compiler/latest/lib:/opt/intel/oneapi/compiler/latest/lib/x64:/opt/intel/oneapi/tbb/latest/lib:$LD_LIBRARY_PATH
+export OCL_ICD_FILENAMES=/etc/OpenCL/vendors/intel64.icd
+
+sycl-ls
+
+============================================================
+PARTEA C - BUILD miniLB ORIGINAL / build_single (doar daca nu avem deja fisierul build_single)
+============================================================
+
+cd "/mnt/d/Facultate/Anul 2/Sem2_Erasmus/HIGH PERFORMANCE_proiect_V5/miniLB"
+
+rm -rf our_builds/build_single
+mkdir -p our_builds/build_single
+
+cmake -S . -B our_builds/build_single \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DSYCL_IMPL=dpcpp \
+  -DCMAKE_CXX_COMPILER=icpx \
+  -DBGK_USE_CASE=LDC \
+  -DBGK_PRECISION=SINGLE \
+  -DBGK_SYCL_MALLOC_SHARED=ON \
+  -DBGK_SYCL_ENABLE_PREFETCH=OFF \
+  -DBGK_SYCL_IN_ORDER_QUEUE=ON \
+  -DBGK_SYCL_ND_RANGE=OFF \
+  -DBGK_DEBUG_HOST_QUEUE=OFF
+
+cmake --build our_builds/build_single -j1
+
+# OBSERVATIE:
+# Aceasta varianta sterge build-ul vechi si il recreeaza curat.
+# Este recomandata daca proiectul a fost copiat/mutat sau apare eroare de CMakeCache.
+
+
+============================================================
+PARTEA D - RULARE miniLB ORIGINAL cu build_single
+============================================================
+
+cd "/mnt/d/Facultate/Anul 2/Sem2_Erasmus/HIGH PERFORMANCE_proiect_V5/miniLB"
+
+cp python_binding_extension/inputs/bgk_512.input our_builds/build_single/bgk.input
+
+cd our_builds/build_single
+
+ONEAPI_DEVICE_SELECTOR=opencl:cpu time ./bgk2dSYCL
+
+cd ../..
+
+
+============================================================
+PARTEA E - ACTIVARE MEDIU CONDA PENTRU PYTHON / DPCTL / PYBIND11
+============================================================
+
+source ~/miniconda3/etc/profile.d/conda.sh
+conda activate sycl_cuda
+
+cd "/mnt/d/Facultate/Anul 2/Sem2_Erasmus/HIGH PERFORMANCE_proiect_V5/miniLB"
+
+# Verificari utile:
+which python3
+python3 --version
+python3 -c "import dpctl; print('dpctl OK:', dpctl.__version__)"
+python3 -c "import pybind11; print('pybind11 OK:', pybind11.__version__)"
+
+
+============================================================
+PARTEA F - BUILD pybind11 / minilb_py
+============================================================
+
+cd "/mnt/d/Facultate/Anul 2/Sem2_Erasmus/HIGH PERFORMANCE_proiect_V5/miniLB"
+
+rm -rf our_builds/build_py
+mkdir -p our_builds/build_py
+
+cmake -S python_binding_extension/python_bindings \
+  -B our_builds/build_py \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DPython3_EXECUTABLE="$(which python3)" \
+  -Dpybind11_DIR="$(python3 -m pybind11 --cmakedir)"
+
+cmake --build our_builds/build_py -j
+
+
+============================================================
+PARTEA G - TESTARE IMPORT minilb_py
+============================================================
+
+cd "/mnt/d/Facultate/Anul 2/Sem2_Erasmus/HIGH PERFORMANCE_proiect_V5/miniLB"
+
+python3 - << 'EOF'
+import sys
+sys.path.insert(0, "our_builds/build_py")
+
+import minilb_py
+print("Module loaded:", minilb_py.__doc__)
+EOF
+
+
+============================================================
+PARTEA H - TESTARE INPUT GENERAT DIN PYTHON
+============================================================
+
+cd "/mnt/d/Facultate/Anul 2/Sem2_Erasmus/HIGH PERFORMANCE_proiect_V5/miniLB"
+
+python3 - << 'EOF'
+import sys
+sys.path.insert(0, "our_builds/build_py")
+
+import minilb_py
+
+minilb_py.create_input(
+    "test_from_python.input",
+    lx=512,
+    ly=512,
+    svisc=0.05,
+    u0=0.1,
+    itfin=5000,
+    ivtim=500,
+    isignal=500,
+    icheck=500
+)
+
+print("Input created from Python")
+EOF
+
+cat test_from_python.input
+
+
+============================================================
+PARTEA I - RULARE BENCHMARK PYTHON
+============================================================
+
+cd "/mnt/d/Facultate/Anul 2/Sem2_Erasmus/HIGH PERFORMANCE_proiect_V5/miniLB"
+
+PYTHONPATH=our_builds/build_py python3 python_binding_extension/benchmark_minilb.py
+
+
+============================================================
+PARTEA J - AFISARE REZULTATE BENCHMARK
+============================================================
+
+cd "/mnt/d/Facultate/Anul 2/Sem2_Erasmus/HIGH PERFORMANCE_proiect_V5/miniLB"
+
+cat python_binding_extension/results/benchmark_results.csv
+cat python_binding_extension/results/cpu_optimization_results.txt
+
+
+============================================================
+PARTEA K - RULARE EXEMPLE DPCTL DIN PYTHON
+============================================================
+
+source ~/miniconda3/etc/profile.d/conda.sh
+conda activate sycl_cuda
+
+cd "/mnt/d/Facultate/Anul 2/Sem2_Erasmus/HIGH PERFORMANCE_proiect_V5/miniLB"
+
+unset LD_LIBRARY_PATH
+export OCL_ICD_FILENAMES=/etc/OpenCL/vendors/intel64.icd
+
+
+python3 python_binding_extension/dpctl_examples/vector_add_kernel.py
+python3 python_binding_extension/dpctl_examples/miniLB_density_dpctl.py
+python3 python_binding_extension/dpctl_examples/miniLB_collision_dpctl.py
+python3 python_binding_extension/dpctl_examples/miniLB_step_dpctl.py
+
+
+============================================================
+PARTEA L - BUILD V5 pybind11 + dpctl + C++ SYCL (daca build-ul nu exista deja)
+============================================================
+
+source ~/miniconda3/etc/profile.d/conda.sh
+conda activate sycl_cuda
+source /opt/intel/oneapi/setvars.sh
+
+cd "/mnt/d/Facultate/Anul 2/Sem2_Erasmus/HIGH PERFORMANCE_proiect_V5/miniLB"
+
+unset LD_LIBRARY_PATH
+export OCL_ICD_FILENAMES=/etc/OpenCL/vendors/intel64.icd
+
+rm -rf our_builds/miniLB_step_pybind11
+mkdir -p our_builds/miniLB_step_pybind11
+
+cd our_builds/miniLB_step_pybind11
+
+cmake ../../python_binding_extension/dpctl_examples/miniLB_step_pybind11_kernels \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_CXX_COMPILER=icpx \
+  -DPython3_EXECUTABLE="$(which python3)" \
+  -Dpybind11_DIR="$(python3 -m pybind11 --cmakedir)"
+
+cmake --build . -j
+
+
+============================================================
+PARTEA M - BUILD RAPID V5, DACA BUILD-UL EXISTA DEJA
+============================================================
+
+source ~/miniconda3/etc/profile.d/conda.sh
+conda activate sycl_cuda
+source /opt/intel/oneapi/setvars.sh
+
+cd "/mnt/d/Facultate/Anul 2/Sem2_Erasmus/HIGH PERFORMANCE_proiect_V5/miniLB/our_builds/miniLB_step_pybind11"
+
+cmake --build . -j
+
+============================================================
+PARTEA N - RULARE TEST V5 pybind11 + dpctl + C++ SYCL
+============================================================
+
+source ~/miniconda3/etc/profile.d/conda.sh
+conda activate sycl_cuda
+
+cd "/mnt/d/Facultate/Anul 2/Sem2_Erasmus/HIGH PERFORMANCE_proiect_V5/miniLB"
+
+unset LD_LIBRARY_PATH
+export OCL_ICD_FILENAMES=/etc/OpenCL/vendors/intel64.icd
+
+python3 python_binding_extension/dpctl_examples/miniLB_step_pybind11_kernels/test_minilb_step_pybind11.py
+
+# REZULTAT ASTEPTAT:
+# collision_all_populations: True
+# streaming_all_populations: True
+# bounce_back_walls: True
+# moving_lid: True
+# memory_allocated_in_python_with_dpctl: True
+# kernels_launched_in_cpp_with_pybind11: True
+# collision_check_ok: True
+# bounce_back_check_ok: True
+# moving_lid_check_ok: True
+# check_ok: True
+# miniLB V5 pybind11 + dpctl USM step check: OK
+
+
+============================================================
+PARTEA O - VERIFICARE ca .so exista in our_builds
+============================================================
+
+cd "/mnt/d/Facultate/Anul 2/Sem2_Erasmus/HIGH PERFORMANCE_proiect_V5/miniLB"
+
+ls -lh our_builds/miniLB_step_pybind11/_minilb_step*.so
+
+# REZULTAT ASTEPTAT:
+# Trebuie sa apara ceva de forma:
+# our_builds/miniLB_step_pybind11/_minilb_step.cpython-312-x86_64-linux-gnu.so
+#
+# ATENTIE:
+# Daca apare cpython-313 si rulezi cu Python 3.12 din sycl_cuda,
+# inseamna ca ai compilat din mediul gresit, de exemplu (base).
+
+
+============================================================
+PARTEA P - VERIFICARE SUPLIMENTARA
+============================================================
+
+cd "/mnt/d/Facultate/Anul 2/Sem2_Erasmus/HIGH PERFORMANCE_proiect_V5/miniLB"
+
+grep -n "malloc_shared\|sycl::free\|MemoryUSMShared\|__sycl_usm_array_interface__" \
+python_binding_extension/dpctl_examples/miniLB_step_pybind11_kernels/_minilb_step.cpp \
+python_binding_extension/dpctl_examples/miniLB_step_pybind11_kernels/test_minilb_step_pybind11.py
+
+# REZULTAT BUN:
+# - apare MemoryUSMShared in Python;
+# - apare __sycl_usm_array_interface__ in C++;
+# - NU apare sycl::malloc_shared;
+# - NU apare sycl::free.
+
+
+============================================================
+PARTEA Q - CE PUTEM RULA PE SCURT
+============================================================
+
+# 1. miniLB original / build_single
+
+cd "/mnt/d/Facultate/Anul 2/Sem2_Erasmus/HIGH PERFORMANCE_proiect_V5/miniLB"
+
+source /opt/intel/oneapi/setvars.sh
+
+export LD_LIBRARY_PATH=/opt/intel/oneapi/umf/1.0/lib:/opt/intel/oneapi/compiler/latest/lib:/opt/intel/oneapi/compiler/latest/lib/x64:/opt/intel/oneapi/tbb/latest/lib:$LD_LIBRARY_PATH
+export OCL_ICD_FILENAMES=/etc/OpenCL/vendors/intel64.icd
+
+cmake --build our_builds/build_single -j1
+
+cp python_binding_extension/inputs/bgk_512.input our_builds/build_single/bgk.input
+
+cd our_builds/build_single
+ONEAPI_DEVICE_SELECTOR=opencl:cpu time ./bgk2dSYCL
+cd ../..
+
+
+# 2. DPCTL direct din Python
+
+source ~/miniconda3/etc/profile.d/conda.sh
+conda activate sycl_cuda
+
+cd "/mnt/d/Facultate/Anul 2/Sem2_Erasmus/HIGH PERFORMANCE_proiect_V5/miniLB"
+
+unset LD_LIBRARY_PATH
+export OCL_ICD_FILENAMES=/etc/OpenCL/vendors/intel64.icd
+
+python3 python_binding_extension/dpctl_examples/vector_add_kernel.py
+python3 python_binding_extension/dpctl_examples/miniLB_step_dpctl.py
+
+
+# 3. V5 pybind11 + dpctl + C++ SYCL
+
+source ~/miniconda3/etc/profile.d/conda.sh
+conda activate sycl_cuda
+source /opt/intel/oneapi/setvars.sh
+
+cd "/mnt/d/Facultate/Anul 2/Sem2_Erasmus/HIGH PERFORMANCE_proiect_V5/miniLB/our_builds/miniLB_step_pybind11"
+cmake --build . -j
+
+cd "/mnt/d/Facultate/Anul 2/Sem2_Erasmus/HIGH PERFORMANCE_proiect_V5/miniLB"
+python3 python_binding_extension/dpctl_examples/miniLB_step_pybind11_kernels/test_minilb_step_pybind11.py
+
+
+
+============================================================
+PARTEA S - CE FACE V5
+============================================================
+
+# V5 este varianta finala si cea mai completa:
+#
+# 1. Python + dpctl:
+#    - creeaza queue;
+#    - aloca memoria USM;
+#    - copiaza datele initiale host -> USM;
+#    - apeleaza modulul C++ prin pybind11.
+#
+# 2. C++ + SYCL:
+#    - calculeaza rho, ux, uy;
+#    - face BGK collision pentru toate cele 9 populatii D2Q9;
+#    - face streaming pentru toate populatiile;
+#    - aplica bounce-back walls;
+#    - aplica moving lid boundary condition.
+#
+# 3. Validare:
+#    - verifica o populatie dupa collision;
+#    - verifica bounce-back la perete;
+#    - verifica moving lid;
+#    - copiaza rezultatele inapoi in Python;
+#    - afiseaza check_ok: True.
+
+
+
+============================================================
+PARTEA T - BENCHMARK V5 pybind11 + dpctl + C++ SYCL PE 5000 PASI
+============================================================
+
+# Aceasta parte ruleaza implementarea noastra V5:
+# Python aloca memoria cu dpctl.memory.MemoryUSMShared.
+# C++ primeste memoria prin pybind11.
+# Loop-ul de 5000 de pasi este executat in C++.
+# Rezultatele sunt salvate in:
+# python_binding_extension/results/benchmark_v5_pybind11_results.csv
+
+source ~/miniconda3/etc/profile.d/conda.sh
+conda activate sycl_cuda
+source /opt/intel/oneapi/setvars.sh
+
+cd "/mnt/d/Facultate/Anul 2/Sem2_Erasmus/HIGH PERFORMANCE_proiect_V5/miniLB"
+
+unset LD_LIBRARY_PATH
+export OCL_ICD_FILENAMES=/etc/OpenCL/vendors/intel64.icd
+
+# CPU local / WSL:
+MINILB_DEVICE_SELECTOR="opencl:cpu:0" \
+python3 python_binding_extension/dpctl_examples/miniLB_step_pybind11_kernels/benchmark_v5_pybind11.py --sizes 256 512 1024 --steps 5000
+
+# Afisare rezultate V5:
+cat python_binding_extension/results/benchmark_v5_pybind11_results.csv
+
+
+============================================================
+PARTEA U - COMPARARE BENCHMARK: miniLB ORIGINAL vs V5
+============================================================
+
+# Aceasta parte compara:
+# 1. miniLB original:
+#    python_binding_extension/results/benchmark_results.csv
+#
+# 2. V5 dpctl + pybind11 + C++ SYCL:
+#    python_binding_extension/results/benchmark_v5_pybind11_results.csv
+#
+# Genereaza:
+# python_binding_extension/results/benchmark_comparison_results.csv
+# python_binding_extension/results/benchmark_comparison_results.txt
+
+cd "/mnt/d/Facultate/Anul 2/Sem2_Erasmus/HIGH PERFORMANCE_proiect_V5/miniLB"
+
+python3 python_binding_extension/compare_benchmarks.py
+
+# Optional: afisare raport text frumos
+cat python_binding_extension/results/benchmark_comparison_results.txt
+
+# Optional: CSV-ul este mai bine de deschis in VS Code / Excel / LibreOffice
+# cat python_binding_extension/results/benchmark_comparison_results.csv
+
+
+============================================================
+PARTEA V - TESTARE DEVICE SELECTOR PENTRU CPU / GPU
+============================================================
+
+# Scop:
+# Pe laptop ruleaza de obicei cu opencl:cpu:0.
+# In laborator / CINECA selectorul poate fi diferit.
+# De aceea NU hardcodam device-ul in cod, ci folosim:
+# MINILB_DEVICE_SELECTOR="..."
+
+source ~/miniconda3/etc/profile.d/conda.sh
+conda activate sycl_cuda
+source /opt/intel/oneapi/setvars.sh
+
+cd "/mnt/d/Facultate/Anul 2/Sem2_Erasmus/HIGH PERFORMANCE_proiect_V5/miniLB"
+
+sycl-ls
+
+python3 - << 'EOF'
+import dpctl
+print("Available dpctl devices:")
+for d in dpctl.get_devices():
+    print(" ", d)
+EOF
+
+# Test selector CPU:
+MINILB_DEVICE_SELECTOR="opencl:cpu:0" \
+python3 - << 'EOF'
+import os
+import dpctl
+q = dpctl.SyclQueue(os.environ["MINILB_DEVICE_SELECTOR"])
+print("Queue:", q)
+print("Device:", q.sycl_device.name)
+print("Backend:", q.sycl_device.backend)
+EOF
+
+# Daca sycl-ls arata GPU OpenCL, testeaza:
+# MINILB_DEVICE_SELECTOR="opencl:gpu:0" python3 - << 'EOF'
+# import os
+# import dpctl
+# q = dpctl.SyclQueue(os.environ["MINILB_DEVICE_SELECTOR"])
+# print("Queue:", q)
+# print("Device:", q.sycl_device.name)
+# print("Backend:", q.sycl_device.backend)
+# EOF
+
+# Daca sycl-ls arata GPU Level Zero, testeaza:
+# MINILB_DEVICE_SELECTOR="level_zero:gpu:0" python3 - << 'EOF'
+# import os
+# import dpctl
+# q = dpctl.SyclQueue(os.environ["MINILB_DEVICE_SELECTOR"])
+# print("Queue:", q)
+# print("Device:", q.sycl_device.name)
+# print("Backend:", q.sycl_device.backend)
+# EOF
+
+# Daca mediul SYCL are CUDA plugin, testeaza:
+# MINILB_DEVICE_SELECTOR="cuda:gpu:0" python3 - << 'EOF'
+# import os
+# import dpctl
+# q = dpctl.SyclQueue(os.environ["MINILB_DEVICE_SELECTOR"])
+# print("Queue:", q)
+# print("Device:", q.sycl_device.name)
+# print("Backend:", q.sycl_device.backend)
+# EOF
+
+
+============================================================
+PARTEA W - RULARE V5 BENCHMARK PE GPU, DACA GPU-UL ESTE DISPONIBIL
+============================================================
+
+# IMPORTANT:
+# Inainte de aceasta parte ruleaza PARTEA V si vezi ce selector GPU exista.
+# Alege una dintre variantele de mai jos, in functie de ce apare la sycl-ls.
+
+source ~/miniconda3/etc/profile.d/conda.sh
+conda activate sycl_cuda
+source /opt/intel/oneapi/setvars.sh
+
+cd "/mnt/d/Facultate/Anul 2/Sem2_Erasmus/HIGH PERFORMANCE_proiect_V5/miniLB"
+
+unset LD_LIBRARY_PATH
+
+ Varianta 1: GPU OpenCL
+ MINILB_DEVICE_SELECTOR="opencl:gpu:0" \
+ python3 python_binding_extension/dpctl_examples/miniLB_step_pybind11_kernels/benchmark_v5_pybind11.py --sizes 256 512 1024 --steps 5000
+
+ Varianta 2: GPU Level Zero
+ MINILB_DEVICE_SELECTOR="level_zero:gpu:0" \
+ python3 python_binding_extension/dpctl_examples/miniLB_step_pybind11_kernels/benchmark_v5_pybind11.py --sizes 256 512 1024 --steps 5000
+
+ Varianta 3: GPU CUDA SYCL, daca este disponibil
+ MINILB_DEVICE_SELECTOR="cuda:gpu:0" \
+ python3 python_binding_extension/dpctl_examples/miniLB_step_pybind11_kernels/benchmark_v5_pybind11.py --sizes 256 512 1024 --steps 5000
+
+ Dupa rularea pe GPU, salveaza separat rezultatele:
+ cp python_binding_extension/results/benchmark_v5_pybind11_results.csv \
+    python_binding_extension/results/benchmark_v5_pybind11_gpu_results.csv
+
+
+============================================================
+PARTEA X - RULARE COMPLETA RECOMANDATA
+============================================================
+
+# Aceasta este ordinea recomandata cand vrei rezultate curate dupa restart:
+# 1. Build rapid miniLB original
+# 2. Benchmark miniLB original
+# 3. Build rapid V5 pybind11
+# 4. Test V5
+# 5. Benchmark V5 pe 256/512/1024 cu 5000 pasi
+# 6. Comparare rezultate
+
+source /opt/intel/oneapi/setvars.sh
+
+cd "/mnt/d/Facultate/Anul 2/Sem2_Erasmus/HIGH PERFORMANCE_proiect_V5/miniLB"
+
+cmake --build our_builds/build_single -j1
+
+source ~/miniconda3/etc/profile.d/conda.sh
+conda activate sycl_cuda
+
+PYTHONPATH=our_builds/build_py python3 python_binding_extension/benchmark_minilb.py
+
+source /opt/intel/oneapi/setvars.sh
+
+cd "/mnt/d/Facultate/Anul 2/Sem2_Erasmus/HIGH PERFORMANCE_proiect_V5/miniLB/our_builds/miniLB_step_pybind11"
+cmake --build . -j
+
+cd "/mnt/d/Facultate/Anul 2/Sem2_Erasmus/HIGH PERFORMANCE_proiect_V5/miniLB"
+
+MINILB_DEVICE_SELECTOR="opencl:cpu:0" \
+python3 python_binding_extension/dpctl_examples/miniLB_step_pybind11_kernels/test_minilb_step_pybind11.py
+
+MINILB_DEVICE_SELECTOR="opencl:cpu:0" \
+python3 python_binding_extension/dpctl_examples/miniLB_step_pybind11_kernels/benchmark_v5_pybind11.py --sizes 256 512 1024 --steps 5000
+
+python3 python_binding_extension/compare_benchmarks.py
+
+============================================================
+PARTEA XI - SIMULARE PENTRU LABORATOR
+============================================================
+
+----------
+1.Punem folderul in
+----------
+
+ Desktop/HIGH PERFORMANCE_PROJECT_V5/miniLB
+
+-------
+2.Intram in folder
+------------
+
+cd "$HOME/Desktop/HIGH PERFORMANCE_PROJECT_V5/miniLB"
+export PROJECT_DIR="$(pwd)"
+echo "$PROJECT_DIR"
+ls
+
+DACA Desktop e in italiana :)))
+cd "$HOME/Scrivania/HIGH PERFORMANCE_PROJECT_V5/miniLB"
+export PROJECT_DIR="$(pwd)"
+echo "$PROJECT_DIR"
+ls
+
+
+-------
+5. Incercam safe activarea sycl_cuda 
+-------
+
+TREBUIE DATA TOATA COMANDA DE MAI JOS, E O SINGURA COMANDA
+
+cd "$PROJECT_DIR"
+
+echo "===== TRY CONDA sycl_cuda ====="
+
+if [ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]; then
+    source "$HOME/miniconda3/etc/profile.d/conda.sh"
+    echo "Miniconda found."
+
+    if conda env list | awk '{print $1}' | grep -qx "sycl_cuda"; then
+        conda activate sycl_cuda
+        echo "Activated conda environment: sycl_cuda"
+    else
+        echo "sycl_cuda environment NOT found. Using current Python for now."
+        conda env list
+    fi
+else
+    echo "No local miniconda found at ~/miniconda3."
+fi
+
+echo "===== TRY oneAPI setvars ====="
+
+if [ -f "/opt/intel/oneapi/setvars.sh" ]; then
+    source /opt/intel/oneapi/setvars.sh
+    echo "oneAPI setvars loaded from /opt/intel/oneapi/setvars.sh"
+else
+    echo "No /opt/intel/oneapi/setvars.sh found. Maybe this machine uses module load."
+fi
+
+echo "===== TRY MODULES ====="
+
+if command -v module >/dev/null 2>&1; then
+    module list || true
+    module avail 2>&1 | grep -Ei "oneapi|intel|compiler|python|conda|anaconda|cuda|cmake|nvidia" || true
+else
+    echo "module command not available in this terminal."
+fi
+
+
+-------
+5. Incercam safe activarea sycl_cuda 
+-------
+
+cd "$PROJECT_DIR"
+
+echo "===== COMPILER ====="
+which icpx || echo "icpx NOT FOUND"
+icpx --version || true
+
+echo "===== PYTHON ====="
+which python3 || echo "python3 NOT FOUND"
+python3 --version || true
+
+echo "===== CMAKE ====="
+which cmake || echo "cmake NOT FOUND"
+cmake --version || true
+
+echo "===== PYTHON PACKAGES ====="
+python3 -c "import dpctl; print('dpctl OK:', dpctl.__version__)" || echo "dpctl NOT FOUND"
+python3 -c "import pybind11; print('pybind11 OK:', pybind11.__version__)" || echo "pybind11 NOT FOUND"
+python3 -c "import numpy; print('numpy OK:', numpy.__version__)" || echo "numpy NOT FOUND"
+
+
+!!!!!!!IMPORTANT: DAM MAI DEPARTE COMENZILE DOAR DACA APARE LA TOATE check_ok
+
+icpx OK
+python3 OK
+cmake OK
+dpctl OK
+pybind11 OK
+numpy OK
+
+-------
+6. PROBLEME POSIBILE
+-------
+
+!!!!!Scenariul A — icpx NOT FOUND
+
+COMDANDA DE MAI JOS:
+
+if command -v module >/dev/null 2>&1; then
+    module avail 2>&1 | grep -Ei "oneapi|intel|compiler"
+    module load intel 2>/dev/null || true
+    module load oneapi 2>/dev/null || true
+    module load intel-oneapi-compilers 2>/dev/null || true
+    module load oneapi-compilers 2>/dev/null || true
+fi
+
+which icpx || echo "Still no icpx"
+icpx --version || true
+
+
+!!!!!Scenariul B — cmake NOT FOUND
+
+Încerci:
+
+if command -v module >/dev/null 2>&1; then
+    module avail 2>&1 | grep -i cmake
+    module load cmake 2>/dev/null || true
+fi
+
+which cmake || echo "Still no cmake"
+cmake --version || true
+
+Dacă ai conda activ și ai voie să instalezi:
+
+conda install -c conda-forge cmake -y
+
+
+
+!!!!Scenariul C — dpctl NOT FOUND
+
+
+Asta e critic. Fără dpctl, V5 nu poate crea SyclQueue și memorie USM.
+
+Încerci să vezi dacă există module Python/Conda:
+
+if command -v module >/dev/null 2>&1; then
+    module avail 2>&1 | grep -Ei "python|conda|anaconda|dpctl|oneapi"
+    module load anaconda 2>/dev/null || true
+    module load miniconda 2>/dev/null || true
+    module load python 2>/dev/null || true
+fi
+
+python3 -c "import dpctl; print('dpctl OK:', dpctl.__version__)" || echo "Still no dpctl"
+
+Plan C, doar dacă aveți voie să instalați și există internet/conda:
+
+conda create -n sycl_cuda -c conda-forge python=3.12 dpctl pybind11 numpy cmake -y
+conda activate sycl_cuda
+
+
+!!!!Scenariul D — pybind11 NOT FOUND
+
+Dacă ai conda:
+
+conda install -c conda-forge pybind11 -y
+
+Sau pip, dacă avem voie:
+
+python3 -m pip install --user pybind11
+
+
+Verificare:
+
+python3 -m pybind11 --cmakedir
+
+Dacă asta merge, CMake poate găsi pybind11.
+
+
+
+---------------------
+PARTEA 5 — Verificare CPU/GPU
+---------------------
+
+DAM COMANDA:
+
+cd "$PROJECT_DIR"
+
+echo "===== sycl-ls ====="
+sycl-ls || echo "sycl-ls not available"
+
+echo "===== dpctl devices ====="
+python3 - <<'EOF'
+import dpctl
+
+devices = dpctl.get_devices()
+print("Number of dpctl devices:", len(devices))
+
+for i, d in enumerate(devices):
+    print("--------------------------------------------------")
+    print("Index:", i)
+    print("Name:", d.name)
+    print("Backend:", d.backend)
+    print("Type:", d.device_type)
+    print("Filter string:", getattr(d, "filter_string", "not available"))
+EOF
+
+
+Dacă vezem doar:
+
+Filter string: opencl:cpu:0
+
+avem doar CPU vizibil.
+
+Dacă apare ceva cu:
+gpu                    =>Copiem exact Filter string.
+
+Exemple:
+
+opencl:gpu:0
+level_zero:gpu:0
+cuda:gpu:0
+
+---------------
+PARTEA 6 — Compilare V5
+---------------
+
+Dacă toate verificările de mai sus sunt ok, dam:
+
+
+
+cd "$PROJECT_DIR"
+
+rm -rf our_builds/miniLB_step_pybind11
+mkdir -p our_builds/miniLB_step_pybind11
+
+cd our_builds/miniLB_step_pybind11
+
+cmake ../../python_binding_extension/dpctl_examples/miniLB_step_pybind11_kernels \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_CXX_COMPILER=icpx \
+  -DPython3_EXECUTABLE="$(which python3)" \
+  -Dpybind11_DIR="$(python3 -m pybind11 --cmakedir)"
+
+cmake --build . -j
+
+cd "$PROJECT_DIR"
+
+
+Rezultat bun:
+
+[100%] Built target _minilb_step
+
+Dacă build-ul pică:
+
+icpx problemă       -> revii la Scenariul A
+pybind11 problemă   -> revii la Scenariul D
+Python mismatch     -> ștergem our_builds/miniLB_step_pybind11 și refacem cmake
+
+
+------------
+PARTEA 7 — Rulezam CPU
+------------
+
+Alegem selector CPU. Dacă la dpctl devices apare opencl:cpu:0, dam:
+
+cd "$PROJECT_DIR"
+
+export CPU_SELECTOR="opencl:cpu:0"
+
+MINILB_DEVICE_SELECTOR="$CPU_SELECTOR" \
+python3 python_binding_extension/dpctl_examples/miniLB_step_pybind11_kernels/test_minilb_step_pybind11.py
+
+
+Dacă apare:
+
+miniLB V5 pybind11 + dpctl USM step check: OK
+
+dam benchmark mic CPU:
+
+MINILB_DEVICE_SELECTOR="$CPU_SELECTOR" \
+python3 python_binding_extension/dpctl_examples/miniLB_step_pybind11_kernels/benchmark_v5_pybind11.py --sizes 64 --steps 10
+
+
+Dacă apare:
+
+last_step_check_ok: True
+
+dai benchmark mare CPU:
+
+MINILB_DEVICE_SELECTOR="$CPU_SELECTOR" \
+python3 python_binding_extension/dpctl_examples/miniLB_step_pybind11_kernels/benchmark_v5_pybind11.py --sizes 256 512 1024 --steps 5000
+
+
+Salvezam CPU:
+
+cp python_binding_extension/results/benchmark_v5_pybind11_results.csv \
+   python_binding_extension/results/benchmark_v5_pybind11_cpu_results.csv
+
+
+---------   
+PARTEA 8 — Rulezare GPU
+---------
+
+Nu ghicim ce GPU e, ci folosim exact Filter string de la device-ul GPU.
+
+Exemplu dacă apare:
+
+Filter string: cuda:gpu:0
+
+dam:
+
+export GPU_SELECTOR="cuda:gpu:0"
+
+Dacă apare:
+
+Filter string: opencl:gpu:0
+
+dam:
+
+export GPU_SELECTOR="opencl:gpu:0"
+
+Dacă apare:
+
+Filter string: level_zero:gpu:0
+
+dam:
+
+export GPU_SELECTOR="level_zero:gpu:0"
+
+Apoi test GPU:
+
+cd "$PROJECT_DIR"
+
+MINILB_DEVICE_SELECTOR="$GPU_SELECTOR" \
+python3 python_binding_extension/dpctl_examples/miniLB_step_pybind11_kernels/test_minilb_step_pybind11.py
+
+
+Dacă apare OK, dam benchmark mic:
+
+MINILB_DEVICE_SELECTOR="$GPU_SELECTOR" \
+python3 python_binding_extension/dpctl_examples/miniLB_step_pybind11_kernels/benchmark_v5_pybind11.py --sizes 64 --steps 10
+
+
+Dacă apare:
+
+last_step_check_ok: True
+
+dam benchmark mare:
+
+MINILB_DEVICE_SELECTOR="$GPU_SELECTOR" \
+python3 python_binding_extension/dpctl_examples/miniLB_step_pybind11_kernels/benchmark_v5_pybind11.py --sizes 256 512 1024 --steps 5000
+
+
+
+!!!!!!!!!!!!!!!!!!!IMPORTANT!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Salvezam GPU results:
+
+cp python_binding_extension/results/benchmark_v5_pybind11_results.csv \
+   python_binding_extension/results/benchmark_v5_pybind11_gpu_results.csv
+
+
+PARTEA 9 — 
+
+1. cd până în miniLB
+2. export PROJECT_DIR="$(pwd)"
+3. încercam conda sycl_cuda, dar nu ne bazam pe el neaparat
+4. încercam oneAPI setvars / module load
+5. verificam icpx, python3, cmake, dpctl, pybind11
+6. verificam sycl-ls și dpctl devices
+7. compilam V5
+8. rulezam CPU mic
+9. rulezam CPU mare
+10. dacă există GPU, rulezam GPU mic
+11. dacă GPU mic merge, rulezam GPU mare
+

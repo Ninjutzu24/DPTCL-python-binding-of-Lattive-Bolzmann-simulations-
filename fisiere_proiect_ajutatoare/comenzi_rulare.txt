@@ -1,0 +1,195 @@
+
+
+source /opt/intel/oneapi/setvars.sh
+
+export LD_LIBRARY_PATH=/opt/intel/oneapi/umf/1.0/lib:/opt/intel/oneapi/compiler/latest/lib:/opt/intel/oneapi/compiler/latest/lib/x64:/opt/intel/oneapi/tbb/latest/lib:$LD_LIBRARY_PATH
+export OCL_ICD_FILENAMES=/etc/OpenCL/vendors/intel64.icd
+
+sycl-ls
+
+cd miniLB
+
+rm -rf build
+mkdir build
+
+cmake -S . -B build \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DSYCL_IMPL=dpcpp \
+  -DCMAKE_CXX_COMPILER=icpx \
+  -DBGK_USE_CASE=LDC \
+  -DBGK_PRECISION=DOUBLE \
+  -DBGK_SYCL_MALLOC_SHARED=ON \
+  -DBGK_SYCL_ENABLE_PREFETCH=OFF \
+  -DBGK_SYCL_IN_ORDER_QUEUE=ON \
+  -DBGK_SYCL_ND_RANGE=OFF \
+  -DBGK_DEBUG_HOST_QUEUE=OFF
+
+
+1.
+SINGLE
+
+cd miniLB
+
+cd build_single
+ONEAPI_DEVICE_SELECTOR=opencl:cpu time ./bgk2dSYCL
+
+DOUBLE:
+
+cd ../build
+ONEAPI_DEVICE_SELECTOR=opencl:cpu time ./bgk2dSYCL
+
+
+
+PAS 2: Orig sau Fused
+
+rm -rf build_single_orig
+mkdir build_single_orig
+
+cmake -S . -B build_single_orig \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DSYCL_IMPL=dpcpp \
+  -DCMAKE_CXX_COMPILER=icpx \
+  -DBGK_USE_CASE=LDC \
+  -DBGK_PRECISION=SINGLE \
+  -DBGK_KERNEL_TYPE=ORIG \
+  -DBGK_SYCL_MALLOC_SHARED=ON \
+  -DBGK_SYCL_ENABLE_PREFETCH=OFF \
+  -DBGK_SYCL_IN_ORDER_QUEUE=ON \
+  -DBGK_SYCL_ND_RANGE=OFF \
+  -DBGK_DEBUG_HOST_QUEUE=OFF
+
+
+cmake --build build_single_orig -j
+cp bgk_bench.input build_single_orig/bgk.input
+cd build_single_orig
+
+export LD_LIBRARY_PATH=/opt/intel/oneapi/umf/1.0/lib:/opt/intel/oneapi/compiler/latest/lib:/opt/intel/oneapi/compiler/latest/lib/x64:/opt/intel/oneapi/tbb/latest/lib:$LD_LIBRARY_PATH
+export OCL_ICD_FILENAMES=/etc/OpenCL/vendors/intel64.icd
+
+ONEAPI_DEVICE_SELECTOR=opencl:cpu time ./bgk2dSYCL
+
+
+NU MERGE
+
+
+
+
+PAS 3: 512 x 512
+
+
+
+cd "/mnt/d/Facultate/Anul 2/Sem2_Erasmus/HIGH PERFORMANCE_proiect/miniLB"
+
+cp bgk_512.input build/bgk.input
+cd build
+
+export LD_LIBRARY_PATH=/opt/intel/oneapi/umf/1.0/lib:/opt/intel/oneapi/compiler/latest/lib:/opt/intel/oneapi/compiler/latest/lib/x64:/opt/intel/oneapi/tbb/latest/lib:$LD_LIBRARY_PATH
+export OCL_ICD_FILENAMES=/etc/OpenCL/vendors/intel64.icd
+
+ONEAPI_DEVICE_SELECTOR=opencl:cpu time ./bgk2dSYCL
+
+PE SINGLE:
+
+SINGLE, FUSED, 512x512, 5000 iterations
+MLUPS = 106.252160
+elapsed = 14.44 s
+user = 27.93 s
+
+cd "/mnt/d/Facultate/Anul 2/Sem2_Erasmus/HIGH PERFORMANCE_proiect/miniLB"
+
+cp bgk_512.input build/bgk.input
+cd build
+
+export LD_LIBRARY_PATH=/opt/intel/oneapi/umf/1.0/lib:/opt/intel/oneapi/compiler/latest/lib:/opt/intel/oneapi/compiler/latest/lib/x64:/opt/intel/oneapi/tbb/latest/lib:$LD_LIBRARY_PATH
+export OCL_ICD_FILENAMES=/etc/OpenCL/vendors/intel64.icd
+
+ONEAPI_DEVICE_SELECTOR=opencl:cpu time ./bgk2dSYCL
+system = 12.07 s
+
+
+Variantă	Build	MLUPS	Timp total
+DOUBLE	build	62.045916	22.95 s
+SINGLE	build_single	106.252160	14.44 s
+
+
+
+
+PAS 4:  1024×1024
+
+
+cat > bgk_1024.input << 'EOF'
+&parameters
+lx = 1024
+ly = 1024
+svisc=0.05
+u0=0.1
+itfin=5000
+ivtim=500
+isignal=500
+itsave=1000000
+icheck=500
+irestart=0
+init_v=0
+ipad=0        /
+EOF
+
+RULAM SINGLE
+
+cp bgk_1024.input build_single/bgk.input
+cd build_single
+
+export LD_LIBRARY_PATH=/opt/intel/oneapi/umf/1.0/lib:/opt/intel/oneapi/compiler/latest/lib:/opt/intel/oneapi/compiler/latest/lib/x64:/opt/intel/oneapi/tbb/latest/lib:$LD_LIBRARY_PATH
+export OCL_ICD_FILENAMES=/etc/OpenCL/vendors/intel64.icd
+
+ONEAPI_DEVICE_SELECTOR=opencl:cpu time ./bgk2dSYCL
+
+RULAM PE DOUBLE
+
+cd "/mnt/d/Facultate/Anul 2/Sem2_Erasmus/HIGH PERFORMANCE_proiect/miniLB"
+
+cp bgk_1024.input build/bgk.input
+cd build
+
+export LD_LIBRARY_PATH=/opt/intel/oneapi/umf/1.0/lib:/opt/intel/oneapi/compiler/latest/lib:/opt/intel/oneapi/compiler/latest/lib/x64:/opt/intel/oneapi/tbb/latest/lib:$LD_LIBRARY_PATH
+export OCL_ICD_FILENAMES=/etc/OpenCL/vendors/intel64.icd
+
+ONEAPI_DEVICE_SELECTOR=opencl:cpu time ./bgk2dSYCL
+
+
+DOUBLE, 1024×1024, 5000 iterations:
+# Mlups          100.402248
+real time        54.86 s
+memory           389004 KB
+
+
+SINGLE, 1024×1024, 5000 iterations:
+# Mlups          110.303856
+real time        51.02 s
+memory           313196 KB
+
+
+For a 1024×1024 Lid-Driven Cavity benchmark with 5000 iterations on the OpenCL CPU backend:
+
+DOUBLE precision achieved 100.40 MLUPS, with 54.86 s elapsed time and 389 MB peak memory.
+SINGLE precision achieved 110.30 MLUPS, with 51.02 s elapsed time and 313 MB peak memory.
+
+The SINGLE precision version is approximately 1.10× faster and reduces peak memory usage by about 19.5%.
+
+
+Pas 4: CONCLUZII SINGLE VS DOUBLE:
+
+256x256:
+DOUBLE: 50.901748 MLUPS, real 9.08s, memory 244348 KB
+SINGLE: 57.614064 MLUPS, real 8.33s, memory 240620 KB
+
+512x512:
+DOUBLE: 62.045916 MLUPS, real 22.95s, memory 275604 KB
+SINGLE: 106.252160 MLUPS, real 14.44s, memory 256432 KB
+
+1024x1024:
+DOUBLE: 100.402248 MLUPS, real 54.86s, memory 389004 KB
+SINGLE: 110.303856 MLUPS, real 51.02s, memory 313196 KB
+
+
+
+

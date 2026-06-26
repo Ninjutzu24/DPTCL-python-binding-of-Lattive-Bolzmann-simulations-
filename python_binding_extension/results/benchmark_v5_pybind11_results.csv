@@ -1,4 +1,0 @@
-nx,ny,steps,elapsed_seconds,mlups,memory_allocated_in_python_with_dpctl,kernels_launched_in_cpp_with_pybind11,loop_executed_in_cpp,last_step_check_ok,last_step_collision_check_ok,last_step_bounce_back_check_ok,last_step_moving_lid_check_ok
-256,256,5000,5.886441145,55.66691179412106,True,True,True,True,True,True,True
-512,512,5000,20.240059805,64.75870193210626,True,True,True,True,True,True,True
-1024,1024,5000,88.315055889,59.36564210059026,True,True,True,True,True,True,True

@@ -1,0 +1,8 @@
+Grid: 256 x 256
+Iterations: 1000
+Implementation: FUSED
+Mode: Serial / CPU
+MLUPS: 12.035306
+Elapsed time: 7.99 s
+User time: 4.83 s
+System time: 2.63 s
